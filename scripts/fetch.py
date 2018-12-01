@@ -34,8 +34,10 @@ def main():
         out_months.append(results['data']['month'])
 
     categories = ynab.get('/budgets/last-used/categories')
+    transactions = ynab.get('/budgets/last-used/transactions')
 
     output = {'categories': categories,
+              'transactions': transactions['data']['transactions'],
               'months': out_months}
 
     print json.dumps(output)
