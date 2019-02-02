@@ -6,6 +6,10 @@ import time
 
 from prettytable import PrettyTable
 
+def amount(raw_amount):
+    return float(raw_amount) / 1000
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--pretend-today', dest='pretend_today')
@@ -23,78 +27,92 @@ def main():
 
     # filter out future months and sort
     data['months'] = filter(lambda m: m['month'] <= today.strftime('%Y-%m-%d'), data['months'])
-    data['months'].sort(key=lambda m: m['month'], reverse=True)
+    data['months'].sort(key=lambda m: m['month'])
 
-    this_month_all = data['months'][0]
-    last_month_all = data['months'][1]
-    this_month_goal_total = 0
-    last_month_budgeted_total = 0
-    this_month_budgeted_total = 0
+    goal_total = 0
 
-    for category_this in sorted(this_month_all['categories'], key=lambda c: c['name']):
-        category_name = category_this['name']
-
-        if category_this['hidden']:
+    for category in sorted(data['months'][-1]['categories'], key=lambda c: c['name']):
+        category_id = category['id']
+        category_name = category['name']
+        if category['hidden']:
             continue
 
-        if category_this['goal_type'] != 'MF':
+        if category['goal_type'] != 'MF':
             continue
+        goal_total += float(category['goal_target']) / 1000
 
-        for c in last_month_all['categories']:
-            if c['name'] == category_name:
-                category_last = c
-                break
+        months = []
+        table = PrettyTable(field_names=['Month', 'Start', 'Start Months', 'Budgeted', 'Spent', 'End', 'End Months'])
+        for i, month in enumerate(data['months']):
+            stats = {}
+            budgeted_total = 0
 
-        name = category_this['name']
-        goal = float(category_this['goal_target']) / 1000
-        this_month_name = this_month_all['month'][:7]
-        last_month_name = last_month_all['month'][:7]
-        last_month_start = float(category_last['balance'] - category_last['activity'] - category_last['budgeted']) / 1000
-        last_month_budgeted = float(category_last['budgeted']) / 1000
-        last_month_months_at_start = last_month_start / goal
-        last_month_spent = abs(float(category_last['activity']) / 1000)
-        this_month_start = float(category_last['balance']) / 1000
-        this_month_budgeted = float(category_this['budgeted']) / 1000
-        this_month_current = float(category_this['balance']) / 1000
-        this_month_spent = abs(float(category_this['activity']) / 1000)
-        if today.day > 10:
-            this_month_projected_spent = (this_month_spent * 30 / today.day)
-        else:
-            this_month_projected_spent = max([last_month_spent, this_month_spent])
-        this_month_projected_end = this_month_start + this_month_budgeted - this_month_projected_spent
-        this_month_months_now = this_month_current / goal
-        this_month_months_at_start = this_month_start / goal
-        this_month_months_at_end = this_month_projected_end / goal
+            for c in month['categories']:
+                if c['name'] == category_name:
+                    category_data = c
+                    break
 
-        last_month_budgeted_total += last_month_budgeted
-        this_month_budgeted_total += this_month_budgeted
-        this_month_goal_total += goal
+            goal = float(category_data['goal_target']) / 1000
+            stats['name'] = month['month'][:7]
+            if i > 0:
+                stats['start'] = months[i - 1]['end']
+            else:
+                stats['start'] = 0
+            stats['budgeted'] = amount(category_data['budgeted'])
+            stats['spent'] = abs(amount(category_data['activity']))
+            if stats['name'] == today.strftime('%Y-%m'):
+                if today.day > 10:
+                    proj_spend = (stats['spent'] * 30 / today.day)
+                else:
+                    proj_spend = max([months[-1]['spent'], stats['spent']])
+                stats['end'] = stats['start'] + stats['budgeted'] - proj_spend
+                spend_str = '$%.2f ($%.2f)' % (stats['spent'], proj_spend)
+            else:
+                stats['end']  = amount(category_data['balance'])
+                spend_str = '$%.2f' % stats['spent']
 
-        print '* %s: $%.2f/month' % (name, goal)
-        print '%s balance: $%.2f (%.1f months)' % (last_month_name, last_month_start, last_month_months_at_start)
-        print '%s spent $%.2f' % (last_month_name, last_month_spent)
-        print '%s start balance: $%.2f (%.1f months)' % (this_month_name, this_month_start, this_month_months_at_start)
-        print '%s budgeted $%.2f, spent $%.2f so far' % (this_month_name, this_month_budgeted, this_month_spent)
+
+            months.append(stats)
+            if i > 0:
+                table.add_row((stats['name'],
+                               '$%.2f' % stats['start'],
+                               '%.2f' % (stats['start'] / goal),
+                               '$%.2f' % stats['budgeted'],
+                               spend_str,
+                               '$%.2f' % stats['end'],
+                               '%.2f' % (stats['end'] / goal)))
+
+            # this_month_projected_end = this_month_start + this_month_budgeted - this_month_projected_spent
+            # this_month_months_now = this_month_current / goal
+            # this_month_months_at_start = this_month_start / goal
+            # this_month_months_at_end = this_month_projected_end / goal
+
+            # last_month_budgeted_total += last_month_budgeted
+            # this_month_budgeted_total += this_month_budgeted
+            # this_month_goal_total += goal
+        print '* %s: $%.2f/month' % (category_name, goal)
+        print table
+
         table = PrettyTable(field_names=['Date', 'Payee', 'Amount'])
         for trans in data['transactions']:
-            if trans['date'][:7] in (this_month_name, last_month_name):
-                if trans['category_name'] == name:
+            if trans['date'][:7] in (months[-1]['name'], months[-2]['name']):
+                if trans['category_name'] == category_name:
                     table.add_row(transaction_row(trans['date'], trans['payee_name'], trans['memo'], trans['amount']))
                 if trans['subtransactions']:
                     for subtrans in trans['subtransactions']:
-                        if category_this['id'] == subtrans['category_id']:
+                        if category_id == subtrans['category_id']:
                             table.add_row(transaction_row(trans['date'], trans['payee_name'], subtrans['memo'], subtrans['amount']))
         print table
 
-        print '%s balance now: $%.2f (%.1f months if no more spent this month)' % (this_month_name, this_month_current, this_month_months_now)
-        print '%s projected $%.2f (%.1f months at end of month)' % (this_month_name, this_month_projected_spent, this_month_months_at_end)
+        #print '%s balance now: $%.2f (%.1f months if no more spent this month)' % (this_month_name, this_month_current, this_month_months_now)
+        #print '%s projected $%.2f (%.1f months at end of month)' % (this_month_name, this_month_projected_spent, this_month_months_at_end)
 
         print
 
-    this_month_total_income = float(this_month_all['income']) / 1000
-    print '*** LAST MONTH TOTAL: $%.2f income, $%.2f ***' % (float(last_month_all['income']) / 1000, last_month_budgeted_total)
-    print '*** THIS MONTH TOTAL: $%.2f income, $%.2f budgeted, $%.2f surplus ***' % (this_month_total_income, this_month_budgeted_total, this_month_total_income - this_month_budgeted_total)
-    print 'GOAL RUN RATE: $%.2f/month ($%.2f/year)' % (this_month_goal_total, this_month_goal_total * 12)
+    #this_month_total_income = float(this_month_all['income']) / 1000
+    #print '*** LAST MONTH TOTAL: $%.2f income, $%.2f ***' % (float(last_month_all['income']) / 1000, last_month_budgeted_total)
+    #print '*** THIS MONTH TOTAL: $%.2f income, $%.2f budgeted, $%.2f surplus ***' % (this_month_total_income, this_month_budgeted_total, this_month_total_income - this_month_budgeted_total)
+    print 'GOAL RUN RATE: $%.2f/month ($%.2f/year)' % (goal_total, goal_total * 12)
 
 def transaction_row(date, payee, memo, amount):
     desc = payee
