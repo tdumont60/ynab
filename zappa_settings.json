@@ -1,0 +1,9 @@
+{
+    "dev": {
+        "app_function": "scripts.serve-dashboard.app", 
+        "profile_name": "admin",
+        "project_name": "ynab", 
+        "runtime": "python2.7", 
+        "s3_bucket": "zappa-krgekwg53"
+    }
+}
