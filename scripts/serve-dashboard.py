@@ -1,3 +1,4 @@
+from collections import defaultdict
 import datetime
 import hashlib
 import json
@@ -33,18 +34,65 @@ TEMPLATE = """
 </html>
 """
 
+NUMBER_TEMPLATE = """
+<body style="font-size: 40px">
+<table border="0" cellpadding="3" cellspacing="0" style="font-size: 40px">
+{% for i, (w, d, n1, n2) in enumerate(data) %}
+{% if i == 0 %}
+<tr style="font-weight:bold">
+{% else %}
+<tr>
+{% endif %}
+<td>{{ w }}</td>
+<td>{{ d }}</td>
+<td>{{ n1 }}</td>
+<td>{{ n2 }}</td>
+</tr>
+{% endfor %}
+</table>
+{% for k in totals %}
+<div>{{ k }}: {{ totals[k] }}
+{% endfor %}
+</body>
+"""
+
+
 from flask import Flask, render_template_string
 app = Flask(__name__)
 
 
+def h(d, s):
+    possibilities = 4
+    cycles = 2
+    days_in_group = possibilities * cycles
+    d_ord = d.toordinal()
+    d_cycle_index = d_ord % days_in_group
+    group_start_ord = d_ord - d_cycle_index
+    days_in_group = [datetime.date.fromordinal(group_start_ord + i) for i in range(days_in_group)]
+    days_in_group.sort(key=lambda x: hashlib.md5(str(x.toordinal()) + s).hexdigest())
+    assert d in days_in_group
+    return (days_in_group.index(d) % possibilities) + 1
+
+
 @app.route('/number')
 def number():
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    seed1 = 'abcd'
-    seed2 = 'ghjkinj'
-    num1 = (int(hashlib.md5(today+seed1).hexdigest(), base=16) % 4) + 1
-    num2 = (int(hashlib.md5(today+seed2).hexdigest(), base=16) % 4) + 1
-    return '''<body style="font-size: 30px"><p>%s</p><p>%s</p><p>%s</p>''' % (today, num1, num2)
+    data = []
+    totals = defaultdict(lambda: defaultdict(int))
+    for i in range(30):
+        d = datetime.date.today() - datetime.timedelta(days=i)
+        date_str = d.strftime('%Y-%m-%d')
+        weekday = d.strftime('%A')[0]
+        seed1 = 'abcd'
+        seed2 = 'ghjkinj'
+        num1 = h(d, seed1)
+        num2 = h(d, seed2)
+        data.append((weekday, date_str, num1, num2))
+        totals[0][num1] += 1
+        totals[1][num2] += 1
+
+    table = []
+
+    return render_template_string(NUMBER_TEMPLATE, data=data, totals=totals, enumerate=enumerate)
 
 @app.route('/')
 def hello_world():
