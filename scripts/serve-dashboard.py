@@ -62,12 +62,13 @@ def hello_world():
         if cg['name'] != 'Monthly Variable':
             continue
         cats = []
+        max_budgeted = max([c['budgeted'] for c in cg['categories']])
         for category in cg['categories']:
             info = {}
             activity = -category['activity']
             budgeted = category['budgeted']
             spent_percent = activity * 1.0 / budgeted
-            total_width = 900
+            total_width = 900 * (float(budgeted) / max_budgeted)
             day_of_month = max(datetime.date.today().day - 2, 1)
             funds_left = budgeted - activity
             remaining_days = DAYS_IN_MONTH - day_of_month
