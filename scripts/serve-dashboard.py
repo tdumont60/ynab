@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import json
 import os
 import sys
@@ -35,6 +36,15 @@ TEMPLATE = """
 from flask import Flask, render_template_string
 app = Flask(__name__)
 
+
+@app.route('/number')
+def number():
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    seed1 = 'abcd'
+    seed2 = 'ghjkinj'
+    num1 = (int(hashlib.md5(today+seed1).hexdigest(), base=16) % 4) + 1
+    num2 = (int(hashlib.md5(today+seed2).hexdigest(), base=16) % 4) + 1
+    return '''<body style="font-size: 30px"><p>%s</p><p>%s</p><p>%s</p>''' % (today, num1, num2)
 
 @app.route('/')
 def hello_world():
