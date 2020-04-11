@@ -37,8 +37,8 @@ TEMPLATE = """
 NUMBER_TEMPLATE = """
 <body style="font-size: 40px">
 <table border="0" cellpadding="3" cellspacing="0" style="font-size: 40px">
-{% for i, (w, d, n1, n2) in enumerate(data) %}
-{% if i == 0 %}
+{% for i, (w, d, n1, n2, is_today) in enumerate(data) %}
+{% if is_today %}
 <tr style="font-weight:bold">
 {% else %}
 <tr>
@@ -50,9 +50,6 @@ NUMBER_TEMPLATE = """
 </tr>
 {% endfor %}
 </table>
-{% for k in totals %}
-<div>{{ k }}: {{ totals[k] }}
-{% endfor %}
 </body>
 """
 
@@ -78,15 +75,15 @@ def h(d, s):
 def number():
     data = []
     totals = defaultdict(lambda: defaultdict(int))
-    for i in range(30):
-        d = datetime.date.today() - datetime.timedelta(days=i)
+    for i in range(4):
+        d = datetime.date.today() - datetime.timedelta(days=i-2)
         date_str = d.strftime('%Y-%m-%d')
         weekday = d.strftime('%A')[0]
         seed1 = 'abcd'
         seed2 = 'ghjkinj'
         num1 = h(d, seed1)
         num2 = h(d, seed2)
-        data.append((weekday, date_str, num1, num2))
+        data.append((weekday, date_str, num1, num2, d==datetime.date.today()))
         totals[0][num1] += 1
         totals[1][num2] += 1
 
@@ -115,7 +112,10 @@ def hello_world():
             info = {}
             activity = -category['activity']
             budgeted = category['budgeted']
-            spent_percent = activity * 1.0 / budgeted
+            if budgeted > 0:
+                spent_percent = activity * 1.0 / budgeted
+            else:
+                spent_percent = 0
             total_width = 900 * (float(budgeted) / max_budgeted)
             day_of_month = max(datetime.date.today().day - 2, 1)
             funds_left = budgeted - activity
